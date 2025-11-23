@@ -1,0 +1,328 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F² Bet - Aviator Money Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+body { margin:0; padding:0; font-family:'Press Start 2P', cursive; background: linear-gradient(135deg,#0d0d0d,#1a1a1a); color:#fff; display:flex; justify-content:center; align-items:flex-start; min-height:100vh; padding-top:20px; }
+.container { width:90%; max-width:480px; background: rgba(26,26,26,0.95); padding:20px; border-radius:16px; box-shadow:0 0 30px rgba(0,255,255,0.3); text-align:center; margin-bottom:20px;}
+h1 { margin-bottom:10px; font-size:28px; color:#00ffff; text-shadow:2px 2px #000; animation: glow 1.5s infinite alternate; }
+button { width:100%; padding:14px; margin:10px 0; font-size:16px; border:none; border-radius:10px; background:#28a745; color:white; cursor:pointer; transition: transform 0.1s, background 0.3s; }
+button:hover { background:#1db954; }
+button:active { transform:scale(0.97); }
+input[type=number], input[type=text], input[type=password] { width:60%; padding:6px; margin:10px 0; font-size:14px; border-radius:6px; border:none; text-align:center; }
+.stats, .aviator, .bank, .leaderboard { margin-top:20px; font-size:16px; }
+@keyframes glow { from { text-shadow:2px 2px #000,0 0 5px #00ffff;} to { text-shadow:2px 2px #000,0 0 20px #00ffff; } }
+/* ---------------- Coin Animation ---------------- */
+.coin-animation {
+  width:40px; height:40px;
+  position:absolute;
+  background-image:url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAACM/rhtAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAr0lEQVR4nO3WMQqEIBAFUIdqJrK1nY6YYT0wCTJE2zOk6TxzYB/fz2dx3BVgzCKL2MAIZ0AUfAhZGAimIBkoQGWkARhQBGFAEUQIRgAhZGAimIBkoQGWkARhQBGFAEUQIRgAhZGAimIBkoQGWkARhQBGFAEUQIRgAhZGAimIBkoQGWkARhQBGFAEUQIRgAhZGAimIBkoQGWkARhQBGFAEVQfZ2ZWX+Y8dI4wAAAABJRU5ErkJggg==');
+  background-size:cover;
+  animation: coinJump 1s ease-out forwards;
+  pointer-events:none;
+  z-index:1000;
+}
+@keyframes coinJump {
+  0% { transform: translateY(0) rotate(0deg); opacity:1; }
+  50% { transform: translateY(-80px) rotate(180deg); opacity:1; }
+  100% { transform: translateY(-120px) rotate(360deg); opacity:0; }
+}
+/* ---------------- Confetti Animation ---------------- */
+.confetti {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: #ff0;
+  opacity: 0.8;
+  pointer-events:none;
+  animation: confettiFall 1s linear forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity:1; }
+  100% { transform: translateY(200px) rotate(360deg); opacity:0; }
+}
+canvas { width:100%; height:150px; background:#111; margin-top:10px; border-radius:8px; }
+.hidden { display:none; }
+#coinContainer { position:relative; height:150px; }
+</style>
+</head>
+<body>
+<!-- Registration / Login / Demo -->
+<div class="container" id="loginContainer">
+<h1>F² Bet</h1>
+<p>Register, Login or Play Demo</p>
+<input type="text" id="fullName" placeholder="Full Name (as in ID)">
+<input type="text" id="phoneNumber" placeholder="07XXXXXXXX">
+<input type="password" id="password" placeholder="Password">
+<button onclick="registerUser()">Register</button>
+<button onclick="loginUser()">Login</button>
+<button onclick="startDemo()">Play Demo</button>
+</div>
+<!-- Game Container -->
+<div class="container hidden" id="gameContainer">
+<h1>Welcome <span id="userDisplay"></span></h1>
+<div id="bankSection">
+<input type="number" id="depositAmount" placeholder="Deposit KES" min="1">
+<button onclick="depositMoney()">Deposit Money</button>
+<button onclick="withdrawWinnings()">Withdraw Balance (10% fee)</button>
+</div>
+<input type="number" id="betAmount" placeholder="Bet Amount (min 20)" min="20">
+<button id="startAviatorBtn" onclick="startAviator()">Start Aviator</button>
+<button id="cashOutBtn" onclick="cashOut()" disabled>Cash Out</button>
+<div class="stats">
+<p><strong>Balance:</strong> KES <span id="balance">100</span></p>
+<p><strong>Profit Today:</strong> KES <span id="profit">0</span></p>
+</div>
+<div class="bank">
+<p><strong>Bank / Withdrawable:</strong> KES <span id="bank">0</span></p>
+<p><strong>Admin Profit:</strong> KES <span id="adminProfit">0</span></p>
+<button onclick="adminWithdraw()">Admin Withdraw Profits</button>
+</div>
+<div class="aviator">
+<p><strong>Current Multiplier:</strong> x<span id="multiplier">1.00</span></p>
+<canvas id="multiplierCanvas"></canvas>
+<p id="aviatorResult"></p>
+<div id="coinContainer"></div>
+</div>
+<div class="leaderboard">
+<h3>Top Players</h3>
+<ol id="leaderboardList"></ol>
+</div>
+<!-- Embedded base64 dummy sounds -->
+<audio id="coinSound" src="data:audio/mp3;base64,//uQxAA...shortdummycoin..." preload="auto"></audio>
+<audio id="crashSound" src="data:audio/mp3;base64,//uQxAA...shortdummycrash..." preload="auto"></audio>
+<audio id="milestoneSound" src="data:audio/mp3;base64,//uQxAA...shortdummymilestone..." preload="auto"></audio>
+<script>
+// ---------------- User & Storage ----------------
+let currentUser = '';
+let demoMode = false;
+let users = JSON.parse(localStorage.getItem('users')) || {};
+let balance=0, profit=0, bank=0, adminProfit=0;
+// SHA-256 hash
+async function hashPassword(password){
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+// Register user
+async function registerUser(){
+  const fullName = document.getElementById('fullName').value.trim();
+  const phone = document.getElementById('phoneNumber').value.trim();
+  const password = document.getElementById('password').value;
+  const kenyanRegex = /^(?:07|01)\d{8}$/;
+  if(!fullName){ alert('Enter full name'); return; }
+  if(!kenyanRegex.test(phone)){ alert('Enter valid Kenyan phone number'); return; }
+  if(!password){ alert('Enter password'); return; }
+  if(users[phone]){ alert('Number already registered'); return; }
+  const passHash = await hashPassword(password);
+  users[phone] = { fullName, phoneNumber: phone, passHash, balance: 100, profit:0, bank:0 };
+  localStorage.setItem('users', JSON.stringify(users));
+  alert('Registration successful! You can now login.');
+}
+// Login user
+async function loginUser(){
+  const phone = document.getElementById('phoneNumber').value.trim();
+  const password = document.getElementById('password').value;
+  const kenyanRegex = /^(?:07|01)\d{8}$/;
+  if(!kenyanRegex.test(phone)){ alert('Enter valid Kenyan phone number'); return; }
+  if(!password){ alert('Enter password'); return; }
+  if(!users[phone]){ alert('Number not registered'); return; }
+  const passHash = await hashPassword(password);
+  if(users[phone].passHash !== passHash){ alert('Incorrect password'); return; }
+  currentUser = phone;
+  demoMode = false;
+  startGame();
+}
+// Start Demo
+function startDemo(){
+  currentUser = 'DemoPlayer';
+  demoMode = true;
+  balance = 100;
+  profit = 0;
+  bank = 0;
+  document.getElementById('bankSection').style.display='none';
+  startGame();
+}
+// Start game display
+function startGame(){
+  document.getElementById('loginContainer').classList.add('hidden');
+  document.getElementById('gameContainer').classList.remove('hidden');
+  document.getElementById('userDisplay').innerText = demoMode ? 'Demo Player' : users[currentUser].fullName;
+  loadUser();
+}
+// Load user data
+function loadUser(){
+  if(!demoMode){
+    const data = users[currentUser];
+    balance = data.balance;
+    profit = data.profit;
+    bank = data.bank;
+    adminProfit = parseInt(localStorage.getItem('adminProfit')) || 0;
+  }
+  updateStats();
+  updateLeaderboard();
+}
+// Save user data
+function saveUser(){
+  if(!demoMode){
+    users[currentUser] = { ...users[currentUser], balance, profit, bank };
+    localStorage.setItem('users', JSON.stringify(users));
+    localStorage.setItem('adminProfit', adminProfit);
+  }
+  updateLeaderboard();
+}
+// ---------------- Stats / Animations ----------------
+function updateStats(){
+  document.getElementById("balance").innerText = balance;
+  document.getElementById("profit").innerText = profit;
+  document.getElementById("bank").innerText = bank;
+  document.getElementById("adminProfit").innerText = adminProfit;
+}
+function animateCoin(){
+  const container = document.getElementById('coinContainer');
+  for(let i=0;i<5;i++){
+    const coin = document.createElement('div');
+    coin.className='coin-animation';
+    coin.style.left = (Math.random()*80) + '%';
+    container.appendChild(coin);
+    setTimeout(()=>container.removeChild(coin),1000);
+  }
+  animateConfetti();
+}
+function animateConfetti(){
+  const container = document.getElementById('coinContainer');
+  for(let i=0;i<15;i++){
+    const confetti = document.createElement('div');
+    confetti.className='confetti';
+    confetti.style.left = (Math.random()*100) + '%';
+    confetti.style.backgroundColor = `hsl(${Math.random()*360}, 100%, 50%)`;
+    container.appendChild(confetti);
+    setTimeout(()=>container.removeChild(confetti),1000);
+  }
+}
+// Deposit
+function depositMoney(){
+  if(demoMode){ alert('Deposit not allowed in demo mode'); return; }
+  const dep = parseInt(document.getElementById('depositAmount').value);
+  if(isNaN(dep)||dep<=0){ alert('Enter valid deposit'); return; }
+  balance += dep;
+  saveUser();
+  updateStats();
+  animateCoin();
+}
+// Withdraw
+function withdrawWinnings(){
+  if(demoMode){ alert('Withdraw not allowed in demo mode'); return; }
+  if(balance<250){ alert('Minimum withdrawal is KES 250'); return; }
+  let withdrawAmount = balance;
+  const dailyLimit = 5000;
+  const fee = Math.floor(withdrawAmount*0.10);
+  if(withdrawAmount>dailyLimit){
+    withdrawAmount = dailyLimit;
+    alert(`Maximum withdrawal per day is KES ${dailyLimit}. You will withdraw KES ${withdrawAmount}.`);
+  }
+  const userAmount = withdrawAmount - fee;
+  bank += userAmount;
+  adminProfit += fee;
+  balance -= withdrawAmount;
+  saveUser();
+  updateStats();
+  alert(`Withdrawn KES ${userAmount}. Fee KES ${fee} to admin.`);
+}
+// Admin withdraw
+function adminWithdraw(){
+  if(adminProfit<=0){ alert('No profits'); return; }
+  const take = adminProfit;
+  adminProfit = 0;
+  saveUser();
+  updateStats();
+  alert(`Admin withdrew KES ${take} profits!`);
+}
+// ---------------- Aviator Game ----------------
+let aviatorInterval=null, crashPoint=0, currentMultiplier=1, currentBet=0, cashedOut=false;
+let multiplierHistory = [];
+function startAviator(){
+  currentBet = parseInt(document.getElementById('betAmount').value);
+  if(isNaN(currentBet)||currentBet<20){ alert('Minimum bet 20 KES'); return; }
+  if(balance<currentBet){ alert('Not enough balance!'); return; }
+  balance -= currentBet;
+  currentMultiplier=1.0;
+  crashPoint = Math.random()*29.5+1.0;
+  cashedOut=false;
+  multiplierHistory = [];
+  document.getElementById('multiplier').innerText=currentMultiplier.toFixed(2);
+  document.getElementById('aviatorResult').innerText='';
+  document.getElementById('startAviatorBtn').disabled=true;
+  document.getElementById('cashOutBtn').disabled=false;
+  aviatorInterval = setInterval(()=>{ 
+    currentMultiplier += (Math.random()*0.08 + 0.03);
+    multiplierHistory.push(currentMultiplier);
+    drawGraph();
+    if([2,5,10,20].some(x => Math.abs(currentMultiplier-x)<0.05)){
+      document.getElementById('milestoneSound').play();
+    }
+    if(currentMultiplier>=crashPoint){
+      clearInterval(aviatorInterval);
+      document.getElementById('multiplier').innerText=crashPoint.toFixed(2);
+      document.getElementById('aviatorResult').innerText='💥 Crashed!';
+      document.getElementById('startAviatorBtn').disabled=false;
+      document.getElementById('cashOutBtn').disabled=true;
+      if(!demoMode) document.getElementById('crashSound').play();
+      saveUser();
+    } else {
+      document.getElementById('multiplier').innerText=currentMultiplier.toFixed(2);
+    }
+  },50);
+  updateStats();
+}
+// Cash Out
+function cashOut(){
+  if(cashedOut) return;
+  cashedOut=true;
+  clearInterval(aviatorInterval);
+  const winnings = Math.floor(currentBet * currentMultiplier);
+  balance += winnings;
+  profit += winnings - currentBet;
+  document.getElementById('aviatorResult').innerText=`💰 Cashed out KES ${winnings}!`;
+  document.getElementById('startAviatorBtn').disabled=false;
+  document.getElementById('cashOutBtn').disabled=true;
+  if(!demoMode) document.getElementById('coinSound').play();
+  saveUser();
+  updateStats();
+  animateCoin();
+}
+// ---------------- Multiplier Graph ----------------
+const canvas = document.getElementById('multiplierCanvas');
+const ctx = canvas.getContext('2d');
+function drawGraph(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.beginPath();
+  ctx.moveTo(0,canvas.height-10);
+  multiplierHistory.forEach((m,i)=>{
+    const x = i * (canvas.width / 500);
+    const y = canvas.height - m*4;
+    ctx.lineTo(x,y<0?0:y);
+  });
+  ctx.strokeStyle='#00ffff';
+  ctx.lineWidth=2;
+  ctx.stroke();
+}
+// ---------------- Leaderboard ----------------
+function updateLeaderboard(){
+  let leaderboard = Object.entries(users).sort((a,b)=>b[1].balance - a[1].balance).slice(0,5);
+  const lbElem = document.getElementById('leaderboardList');
+  lbElem.innerHTML='';
+  leaderboard.forEach(([phone,data])=>{
+    const li = document.createElement('li');
+    li.innerText=`${data.fullName}: KES ${data.balance}`;
+    lbElem.appendChild(li);
+  });
+}
+</script>
+</body>
+  </html>
